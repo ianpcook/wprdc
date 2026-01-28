@@ -2,7 +2,7 @@
 
 Query 363+ datasets from the [Western PA Regional Data Center](https://data.wprdc.org). Property assessments, air quality, 311 requests, jail census, overdose data, parking, permits, violations — all queryable via SQL without downloading.
 
-An [Agent Skill](https://skills.sh) — works with Claude Code, Clawdbot, Cursor, Windsurf, Cline, and any agent that supports the open skills format.
+An [Agent Skill](https://skills.sh) — works with Claude Code, Cursor, Windsurf, Cline, Goose, and any agent that supports the open skills format.
 
 ## Installation
 

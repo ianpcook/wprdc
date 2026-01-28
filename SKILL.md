@@ -4,8 +4,7 @@ description: Query Pittsburgh's Western PA Regional Data Center (WPRDC) — 363+
 version: 1.1.0
 homepage: https://data.wprdc.org
 metadata:
-  clawdbot:
-    emoji: 📊
+  emoji: 📊
   tags:
     - pittsburgh
     - civic-data
