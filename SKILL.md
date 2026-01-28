@@ -125,7 +125,43 @@ Example:
 <skill>/wprdc.py query 'SELECT * FROM @overdoses WHERE "death_year"=2024 LIMIT 10'
 ```
 
-## SQL Query Tips
+## Before Querying, Ask Yourself
+
+1. **Scope**: Is this City of Pittsburgh only, or all of Allegheny County?
+   - PLI violations, 311, permits → **City of Pittsburgh only** (90 neighborhoods)
+   - Property assessments, overdoses, jail → **All of Allegheny County** (130 municipalities)
+
+2. **Freshness**: When was this dataset last updated? Run `info <dataset>` first.
+
+3. **Fields**: What columns exist? Run `fields <resource>` before writing SQL.
+
+4. **Size**: How many records? Start with `LIMIT 10`, expand once you know it works.
+
+## NEVER Do
+
+- **NEVER use CAST(), ROUND(), AVG(), or other SQL functions** — WPRDC blocks them. You'll get "Access denied: Not authorized to call function". Do aggregation client-side.
+
+- **NEVER query without LIMIT on large tables** — Assessments has 584K rows. Queries timeout. Always add `LIMIT`.
+
+- **NEVER assume county-wide coverage for City datasets** — PLI violations, 311, permits are **City of Pittsburgh only**. Aspinwall, Fox Chapel, Mt. Lebanon = separate municipalities, not in the data.
+
+- **NEVER trust "under maintenance" datasets** — County plumbing inspections, housing inspections, food facilities are currently broken. Check `info` first.
+
+- **NEVER forget column quoting** — UPPERCASE columns need double quotes (`"PARID"`), lowercase don't (`case_year`). Wrong quoting = cryptic "column does not exist" errors.
+
+- **NEVER use wildcards on unindexed text** — `LIKE '%something%'` on large tables will timeout. Be specific.
+
+## Common Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `409 CONFLICT` + "column does not exist" | Unquoted uppercase column | Add quotes: `"PARID"` not `PARID` |
+| `Access denied: Not authorized to call function` | Used CAST/ROUND/AVG | Remove function, process client-side |
+| Timeout / no response | Query too large | Add `LIMIT`, narrow `WHERE` clause |
+| Empty results | Filter mismatch | Check exact string values with a broad query first |
+| "resource not found" | Wrong resource ID | Use `resources <dataset>` to get correct ID |
+
+## SQL Tips
 
 1. **Quote UPPERCASE column names** — PostgreSQL is case-sensitive:
    ```sql
@@ -133,11 +169,7 @@ Example:
    SELECT case_year FROM @overdoses            -- ✓ lowercase works without quotes
    ```
 
-2. **Use `LIMIT`** — Large tables can timeout without limits
-
-3. **Check fields first** — Use `fields <resource>` to see available columns
-
-4. **Aggregate queries work**:
+2. **GROUP BY works**, but not aggregate functions:
    ```sql
    SELECT "PROPERTYCITY", COUNT(*) as cnt 
    FROM @assessments 
@@ -146,60 +178,54 @@ Example:
    LIMIT 10
    ```
 
-## Organizations
+3. **Check fields first** — Column names vary wildly between datasets
 
-Major data publishers:
-- **allegheny-county** — 143 datasets (assessments, health, jail, elections)
-- **city-of-pittsburgh** — 126 datasets (311, permits, violations, budget)
-- **pittsburgh-regional-transit** — 9 datasets (bus routes, ridership)
-- **ppa** — 5 datasets (parking transactions)
-- **pwsa** — 4 datasets (water/sewer)
+## Coverage Map (Critical!)
 
-## Topic Groups
+| Dataset | Coverage | Municipalities |
+|---------|----------|----------------|
+| Property Assessments | **All Allegheny County** | 130 municipalities |
+| Property Sales | **All Allegheny County** | 130 municipalities |
+| Fatal Overdoses | **All Allegheny County** | By zip code |
+| Jail Census | **All Allegheny County** | County facility |
+| 911 Dispatches | **Most of county** | 111 of 130 municipalities |
+| Air Quality | **All Allegheny County** | Monitor locations |
+| PLI Violations | **City of Pittsburgh ONLY** | 90 neighborhoods |
+| PLI Permits | **City of Pittsburgh ONLY** | 90 neighborhoods |
+| 311 Requests | **City of Pittsburgh ONLY** | 90 neighborhoods |
 
-- **housing-properties** — Property data, assessments, sales
-- **health** — Overdoses, air quality, COVID, health indicators
-- **public-safety-justice** — 911 calls, jail census, police data
-- **transportation** — Transit, parking, bike infrastructure
-- **environment** — Air quality, land use, green spaces
-- **civic-vitality-governance** — 311, budgets, elections
+**If someone asks about Fox Chapel, Aspinwall, Mt. Lebanon, etc.** → Only county-wide datasets apply. No PLI/311 data for suburbs.
+
+## Organizations & Topics
+
+Use `orgs` and `groups` commands to explore. Major publishers:
+- **allegheny-county** (143 datasets) — assessments, health, jail
+- **city-of-pittsburgh** (126 datasets) — 311, permits, violations
 
 ## Example Queries
 
-**"What's the assessed value of this property?"**
 ```bash
-<skill>/wprdc.py parcel 0001A00001000000
-```
+# Property lookup by parcel ID
+<skill>/wprdc.py parcel 0028F00194000000
 
-**"Show recent 311 requests about potholes"**
-```bash
-<skill>/wprdc.py query 'SELECT "CREATED_ON", "REQUEST_TYPE", "ADDRESS" FROM @311 WHERE "REQUEST_TYPE" LIKE '"'"'%Pothole%'"'"' ORDER BY "CREATED_ON" DESC LIMIT 10'
-```
+# Search by address (use SQL)
+<skill>/wprdc.py query 'SELECT * FROM @assessments WHERE "PROPERTYHOUSENUM"='"'"'251'"'"' AND "PROPERTYADDRESS" LIKE '"'"'%PASADENA%'"'"''
 
-**"How many overdose deaths per year?"**
-```bash
+# Overdose trends by year
 <skill>/wprdc.py query 'SELECT case_year, COUNT(*) as deaths FROM @overdoses GROUP BY case_year ORDER BY case_year'
+
+# Filter by neighborhood (City of Pittsburgh only)
+<skill>/wprdc.py query 'SELECT "VIOLATION", COUNT(*) FROM @violations WHERE "NEIGHBORHOOD"='"'"'Hazelwood'"'"' GROUP BY "VIOLATION" ORDER BY COUNT(*) DESC LIMIT 10'
+
+# Cross-tab query
+<skill>/wprdc.py query 'SELECT combined_od1, race, COUNT(*) FROM @overdoses GROUP BY combined_od1, race ORDER BY COUNT(*) DESC LIMIT 20'
 ```
 
-**"Find datasets about transit"**
-```bash
-<skill>/wprdc.py search "transit" --org pittsburgh-regional-transit
-```
+## Known Issues (as of Jan 2026)
 
-**"Download air quality data"**
-```bash
-<skill>/wprdc.py download allegheny-county-air-quality --format csv
-```
+- **311 Data** stopped updating Feb 2025 — new system transition
+- **County Plumbing Inspections** — under maintenance
+- **County Housing Inspections** — under maintenance  
+- **County Food Facilities** — under maintenance
 
-## Data Source
-
-All data from [Western PA Regional Data Center](https://data.wprdc.org), powered by CKAN.
-
-Data is maintained by various regional organizations including Allegheny County, City of Pittsburgh, PWSA, PRT, and community groups. Update frequencies vary by dataset — check `info <dataset>` for details.
-
-## Combining with Other Skills
-
-This skill pairs well with:
-- **fishfry** — Fish fry data is also on WPRDC
-- **plow-tracker** — Cross-reference with 311 snow complaints
-- **goplaces** — Geocode addresses for location-based queries
+Always run `info <dataset>` to check last update date before relying on data.
