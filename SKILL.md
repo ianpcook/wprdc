@@ -1,7 +1,7 @@
 ---
 name: wprdc
 description: Query Pittsburgh's Western PA Regional Data Center (WPRDC) — 363+ datasets covering property assessments, air quality, 311 requests, jail census, overdose data, permits, violations, and more. Run SQL queries against live tables without downloading. Use when user asks about Pittsburgh/Allegheny County public data, property lookups, civic data, or regional statistics.
-version: 1.0.0
+version: 1.1.0
 homepage: https://data.wprdc.org
 metadata:
   clawdbot:
